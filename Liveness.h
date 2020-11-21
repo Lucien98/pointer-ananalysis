@@ -18,8 +18,11 @@
 #include <llvm/IR/IntrinsicInst.h>
 
 #include "Dataflow.h"
+
+#include <vector>
 using namespace llvm;
 
+//using FuntionSet = std::vector<Function *>;
 
 struct LivenessInfo {
    std::set<Instruction *> LiveVars;             /// Set of variables which are live

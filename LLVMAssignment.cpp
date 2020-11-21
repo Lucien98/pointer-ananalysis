@@ -51,6 +51,10 @@ char EnableFunctionOptPass::ID = 0;
 
 ///!TODO TO BE COMPLETED BY YOU FOR ASSIGNMENT 3
 struct FuncPtrPass : public ModulePass {
+private:
+    DataflowResult<LivenessInfo> ::Type result;
+    std::vector<Function *> fn_worklist;
+public:
     static char ID; // Pass identification, replacement for typeid
     FuncPtrPass() : ModulePass(ID) {}
 
@@ -60,6 +64,18 @@ struct FuncPtrPass : public ModulePass {
         errs().write_escaped(M.getName()) << '\n';
         M.dump();
         errs() << "------------------------------\n";
+        for (auto &F : M){
+            if (F.isIntrinsic()) continue;
+            else {
+                errs() << F.getName() << "\n";
+                fn_worklist.push_back(&F);
+            }
+            for(auto func : fn_worklist){
+                LivenessVisitor visitor;
+                LivenessInfo initval;
+                compForwardDataflow(func, &visitor, &result, initval);
+            };
+        }
         return false;
     }
 };
@@ -100,11 +116,10 @@ int main(int argc, char **argv) {
    Passes.add(llvm::createPromoteMemoryToRegisterPass());
 
    /// Your pass to print Function and Call Instructions
-   Passes.add(new Liveness());
-   //Passes.add(new FuncPtrPass());
+   //Passes.add(new Liveness());
+   Passes.add(new FuncPtrPass());
    Passes.run(*M.get());
 #ifndef NDEBUG
-   system("pause");
 #endif
 }
 
