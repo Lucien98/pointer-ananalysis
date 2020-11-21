@@ -18,29 +18,42 @@
 #include <llvm/IR/IntrinsicInst.h>
 
 #include "Dataflow.h"
-
+#include <map>
+#include <set>
 #include <vector>
 using namespace llvm;
 
 //using FuntionSet = std::vector<Function *>;
+using ValueSet = std::set<Value *>;
+using LivenessToMap = std::map<Value *, ValueSet>;
 
 struct LivenessInfo {
-   std::set<Instruction *> LiveVars;             /// Set of variables which are live
-   LivenessInfo() : LiveVars() {}
-   LivenessInfo(const LivenessInfo & info) : LiveVars(info.LiveVars) {}
+    LivenessToMap LiveVars_map;
+    LivenessToMap LiveVars_feild_map;
+    LivenessInfo() : LiveVars_map(),LiveVars_feild_map() {}
+    LivenessInfo(const LivenessInfo &info) : LiveVars_map(info.LiveVars_map),LiveVars_feild_map(info.LiveVars_feild_map) {}
   
    bool operator == (const LivenessInfo & info) const {
-       return LiveVars == info.LiveVars;
+       return LiveVars_map == info.LiveVars_map && LiveVars_feild_map==info.LiveVars_feild_map;
    }
 };
 
-inline raw_ostream &operator<<(raw_ostream &out, const LivenessInfo &info) {
-    for (std::set<Instruction *>::iterator ii=info.LiveVars.begin(), ie=info.LiveVars.end();
-         ii != ie; ++ ii) {
-       const Instruction * inst = *ii;
-       out << inst->getName();
-       out << " ";
+inline raw_ostream &operator<<(raw_ostream &out, const LivenessToMap &v) {
+    out << "{ ";
+    for (auto i = v.begin(), e = v.end(); i != e; ++i)
+    {
+        out << i->first->getName() << " " << i->first << " -> ";
+        for (auto ii = i->second.begin(), ie = i->second.end(); ii != ie; ++ii)
+        {
+            if (ii != i->second.begin())
+            {
+                errs() << ", ";
+            }
+            out << (*ii)->getName() << " " << (*ii);
+        }
+        out << " ; ";
     }
+    out << "}";
     return out;
 }
 
@@ -49,21 +62,16 @@ class LivenessVisitor : public DataflowVisitor<struct LivenessInfo> {
 public:
    LivenessVisitor() {}
    void merge(LivenessInfo * dest, const LivenessInfo & src) override {
-       for (std::set<Instruction *>::const_iterator ii = src.LiveVars.begin(), 
-            ie = src.LiveVars.end(); ii != ie; ++ii) {
-           dest->LiveVars.insert(*ii);
-       }
+        for(auto ii = src.LiveVars_map.begin(),ie = src.LiveVars_map.end();ii!=ie;ii++){
+            dest->LiveVars_map[ii->first].insert(ii->second.begin(),ii->second.end());
+        }
+        for(auto ii=src.LiveVars_feild_map.begin(),ie=src.LiveVars_feild_map.end();ii!=ie;ii++){
+            dest->LiveVars_feild_map[ii->first].insert(ii->second.begin(),ii->second.end());
+        }
    }
 
    void compDFVal(Instruction *inst, LivenessInfo * dfval) override{
-        if (isa<DbgInfoIntrinsic>(inst)) return;
-        dfval->LiveVars.erase(inst);
-        for(User::op_iterator oi = inst->op_begin(), oe = inst->op_end();
-            oi != oe; ++oi) {
-           Value * val = *oi;
-           if (isa<Instruction>(val)) 
-               dfval->LiveVars.insert(cast<Instruction>(val));
-       }
+       return;
    }
 };
 
@@ -79,10 +87,10 @@ public:
        LivenessVisitor visitor;
        DataflowResult<LivenessInfo>::Type result;
        LivenessInfo initval;
-
+/*
        compBackwardDataflow(&F, &visitor, &result, initval);
        printDataflowResult<LivenessInfo>(errs(), result);
-       return false;
+*/       return false;
    }
 };
 

@@ -53,7 +53,7 @@ char EnableFunctionOptPass::ID = 0;
 struct FuncPtrPass : public ModulePass {
 private:
     DataflowResult<LivenessInfo> ::Type result;
-    std::vector<Function *> fn_worklist;
+    std::set<Function *> fn_worklist;
 public:
     static char ID; // Pass identification, replacement for typeid
     FuncPtrPass() : ModulePass(ID) {}
@@ -68,10 +68,11 @@ public:
             if (F.isIntrinsic()) continue;
             else {
                 errs() << F.getName() << "\n";
-                fn_worklist.push_back(&F);
+                fn_worklist.insert(&F);
             }
+
+            LivenessVisitor visitor;
             for(auto func : fn_worklist){
-                LivenessVisitor visitor;
                 LivenessInfo initval;
                 compForwardDataflow(func, &visitor, &result, initval);
             };

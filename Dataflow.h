@@ -66,7 +66,7 @@ public:
 ///
 template<class T>
 struct DataflowResult {
-    typedef typename std::map<BasicBlock *, std::pair<T, T> > Type;
+    typedef typename std::map<Instruction *, std::pair<T, T> > Type;
 };
 
 /// 
@@ -87,7 +87,11 @@ void compForwardDataflow(Function *fn,
     std::set<BasicBlock *> bb_worklist;
     for(auto &bi : *fn){
         BasicBlock * bb = dyn_cast<BasicBlock>(&bi);
-        result->insert(std::make_pair(bb, std::make_pair(initval, initval)));
+        for (auto ii = bb->begin(), ie = bb->end(); ii != ie; ii++)
+        {
+            auto i = dyn_cast<Instruction>(ii);
+            result->insert(std::make_pair(i, std::make_pair(initval, initval)));
+        }
         bb_worklist.insert(bb);
     }
 
@@ -95,15 +99,21 @@ void compForwardDataflow(Function *fn,
         BasicBlock * bb = *bb_worklist.begin();
         bb_worklist.erase(bb_worklist.begin());
 
-        T bbinval = (*result)[bb].first;
-        for(auto pi=pred_begin(bb),pe=pred_end(bb);pi!=pe;pi++){
-            BasicBlock * pred = *pi;
-            visitor->merge(&bbinval, (*result)[pred].second);
+        Instruction *bb_first_inst = &*(bb->begin());
+        Instruction *bb_last_inst = &*(--bb->end());
+        T bbinval = (*result)[bb_first_inst].first; // std::make_pair(initval, initval)[0]
+        
+        for (auto pi = pred_begin(bb), pe = pred_end(bb); pi != pe; pi++)
+        {
+            BasicBlock *pred = *pi;
+            Instruction *pred_last_inst = &*(--pred->end());
+            visitor->merge(&bbinval, (*result)[pred_last_inst].second); //std::make_pair(initval, initval)[1]
         }
 
-        (*result)[bb].first = bbinval;
+        /*(*result)[bb].first = bbinval;
         
-        visitor->compDFVal(bb, bbinval, false);
+        visitor->compDFVal(bb, bbinval, true);
+        */
     }
     return;
 }
