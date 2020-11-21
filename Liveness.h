@@ -59,8 +59,9 @@ inline raw_ostream &operator<<(raw_ostream &out, const LivenessToMap &v) {
 
 	
 class LivenessVisitor : public DataflowVisitor<struct LivenessInfo> {
+    std::map<CallInst *, std::set<Function *>> call_func_result;
 public:
-   LivenessVisitor() {}
+   LivenessVisitor() : call_func_result() {}
    void merge(LivenessInfo * dest, const LivenessInfo & src) override {
         for(auto ii = src.LiveVars_map.begin(),ie = src.LiveVars_map.end();ii!=ie;ii++){
             dest->LiveVars_map[ii->first].insert(ii->second.begin(),ii->second.end());
@@ -70,9 +71,54 @@ public:
         }
    }
 
-   void compDFVal(Instruction *inst, LivenessInfo * dfval) override{
+    void HandlePHINode(PHINode *phiNode, DataflowResult<LivenessInfo>::Type *result)
+    {
+        LivenessInfo dfval = (*result)[phiNode].first;
+        dfval.LiveVars_map[phiNode].clear();
+        for (Value *value : phiNode->incoming_values())
+        {
+        }
+    }
+
+    void HandleCallInst(CallInst *callInst, DataflowResult<LivenessInfo>::Type *result)
+    {
+        LivenessInfo dfval = (*result)[callInst].first;
+        std::set<Function *> callees;
+    }
+
+   void compDFVal(Instruction *inst, DataflowResult<LivenessInfo>::Type *result) override{
+        if (isa<DbgInfoIntrinsic>(inst))
+            return;
+        if (auto phiNode = dyn_cast<PHINode>(inst))
+        {
+            errs() << "I am in PHINode"
+                   << "\n";
+            HandlePHINode(phiNode, result);
+        }
+        else if (auto callInst = dyn_cast<CallInst>(inst))
+        {
+            errs() << "I am in CallInst"
+                   << "\n";
+            HandleCallInst(callInst, result);
+        }
+
        return;
    }
+    void printCallFuncResult()
+    {
+        for (auto ii = call_func_result.begin(), ie = call_func_result.end(); ii != ie; ii++)
+        {
+            errs() << ii->first->getDebugLoc().getLine() << " : ";
+            for (auto fi = ii->second.begin(), fe = ii->second.end(); fi != fe; fi++)
+            {
+                if(fi!=ii->second.begin()){
+                    errs()<<", ";
+                }
+                errs()<<(*fi)->getName();
+            }
+            errs() << "\n";
+        }
+    }
 };
 
 
