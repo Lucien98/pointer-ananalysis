@@ -173,12 +173,35 @@ public:
         LivenessInfo dfval = (*result)[storeInst].first;
 
         ValueSet values;
+        if (dfval.LiveVars_map[storeInst->getValueOperand()].empty())
+        {
+            // x=1
+            values.insert(storeInst->getValueOperand());
+        }
+        else
+        {
+            // y = 1
+            // x = y
+            // insert all
+            values.insert(dfval.LiveVars_map[storeInst->getValueOperand()].begin(), dfval.LiveVars_map[storeInst->getValueOperand()].end());
+        }
 
+        //ptr
+        dfval.LiveVars_map[storeInst->getPointerOperand()].clear();
+        dfval.LiveVars_map[storeInst->getPointerOperand()].insert(values.begin(),values.end());
+        
+        (*result)[storeInst].second = dfval;
     }
 
     void HandleLoadInst(LoadInst *loadInst, DataflowResult<LivenessInfo>::Type *result)
     {
+        LivenessInfo dfval = (*result)[loadInst].first;
+
+        // ptr
+        dfval.LiveVars_map[loadInst].insert(dfval.LiveVars_map[loadInst->getPointerOperand()].begin(),dfval.LiveVars_map[loadInst->getPointerOperand()].end());
+        (*result)[loadInst].second = dfval;
     }
+
 
     void compDFVal(Instruction *inst, DataflowResult<LivenessInfo>::Type *result) override{
         if (isa<DbgInfoIntrinsic>(inst))
