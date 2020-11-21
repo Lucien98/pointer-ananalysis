@@ -77,13 +77,63 @@ public:
         dfval.LiveVars_map[phiNode].clear();
         for (Value *value : phiNode->incoming_values())
         {
+            if (isa<Function>(value))
+            {
+                dfval.LiveVars_map[phiNode].insert(value);
+            }
+            else
+            {
+                ValueSet &values = dfval.LiveVars_map[value];
+                dfval.LiveVars_map[phiNode].insert(values.begin(), values.end());
+            }
+            // 对于PHI节点，Union进来的所有set
+
         }
+        (*result)[phiNode].second = dfval;
+    }
+
+    std::set<Function *> getCallees(Value *value, LivenessInfo *dfval)
+    {
+        std::set<Function *> result;
+        if (auto *func = dyn_cast<Function>(value))
+        {
+            result.insert(func);
+            return result;
+        }
+
+        ValueSet value_worklist;
+        if (!dfval->LiveVars_map[value].empty())
+        {
+            value_worklist.insert(dfval->LiveVars_map[value].begin(), dfval->LiveVars_map[value].end());
+        }
+
+        while (!value_worklist.empty())
+        {
+            if (auto *func = dyn_cast<Function>(*(value_worklist.begin())))
+            {
+                result.insert(func);
+            }
+            else
+            {
+                value_worklist.insert(dfval->LiveVars_map[*(value_worklist.begin())].begin(), dfval->LiveVars_map[*(value_worklist.begin())].end());
+            }
+        }
+        return result;
     }
 
     void HandleCallInst(CallInst *callInst, DataflowResult<LivenessInfo>::Type *result)
     {
         LivenessInfo dfval = (*result)[callInst].first;
         std::set<Function *> callees;
+        callees = getCallees(callInst->getCalledValue(), &dfval);
+        call_func_result[callInst].clear();
+        call_func_result[callInst].insert(callees.begin(), callees.end());
+
+        if (callInst->getCalledFunction() && callInst->getCalledFunction()->isDeclaration())
+        {
+            (*result)[callInst].second = (*result)[callInst].first;
+            return;
+        }
     }
 
    void compDFVal(Instruction *inst, DataflowResult<LivenessInfo>::Type *result) override{

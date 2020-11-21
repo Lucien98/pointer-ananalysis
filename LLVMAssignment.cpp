@@ -70,13 +70,13 @@ public:
                 errs() << F.getName() << "\n";
                 fn_worklist.insert(&F);
             }
-
-            LivenessVisitor visitor;
-            for(auto func : fn_worklist){
-                LivenessInfo initval;
-                compForwardDataflow(func, &visitor, &result, initval);
-            };
         }
+        LivenessVisitor visitor;
+        for(auto func : fn_worklist){
+            LivenessInfo initval;
+            compForwardDataflow(func, &visitor, &result, initval);
+        };
+        visitor.printCallFuncResult();
         return false;
     }
 };
