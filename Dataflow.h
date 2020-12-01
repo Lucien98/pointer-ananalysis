@@ -16,6 +16,7 @@
 #include <llvm/IR/Function.h>
 
 using namespace llvm;
+bool debug = false;
 ///
 /// Dummy class to provide a typedef for the detailed result set
 /// For each basicblock, we compute its input dataflow val and its output dataflow val
@@ -43,6 +44,9 @@ public:
                 ii!=ie; ++ii) {
                 Instruction * inst = &*ii;
                 compDFVal(inst, result);
+                if (Instruction *next_inst = inst->getNextNode()){
+                    (*result)[next_inst].first = (*result)[inst].second;
+                }
            }
         } else {
             /*
@@ -83,10 +87,11 @@ public:
 template<class T>
 void compForwardDataflow(Function *fn,
     DataflowVisitor<T> *visitor,
-    typename DataflowResult<T>::Type *result,
-    const T & initval) {
+    typename DataflowResult<T>::Type *result
+    ) {
     
     std::set<BasicBlock *> bb_worklist;
+    T initval;
     for(auto &bi : *fn){
         BasicBlock * bb = dyn_cast<BasicBlock>(&bi);
         for (auto ii = bb->begin(), ie = bb->end(); ii != ie; ii++)
@@ -99,6 +104,7 @@ void compForwardDataflow(Function *fn,
 
     while(!bb_worklist.empty()){
         BasicBlock * bb = *bb_worklist.begin();
+        if (debug) errs() << *bb << "\n";
         bb_worklist.erase(bb_worklist.begin());
 
         Instruction *bb_first_inst = &*(bb->begin());

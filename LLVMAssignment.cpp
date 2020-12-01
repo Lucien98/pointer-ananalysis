@@ -60,22 +60,33 @@ public:
 
 
     bool runOnModule(Module &M) override {
-        errs() << "Hello: ";
+        /*errs() << "Hello: ";
         errs().write_escaped(M.getName()) << '\n';
         M.dump();
         errs() << "------------------------------\n";
+        */
         for (auto &F : M){
             if (F.isIntrinsic()) continue;
             else {
-                errs() << F.getName() << "\n";
+                //errs() << F.getName() << "\n";
                 fn_worklist.insert(&F);
             }
         }
         LivenessVisitor visitor;
-        for(auto func : fn_worklist){
+        Function *func;
+        int count = 0;
+        for (;!fn_worklist.empty(); ){
+            func = *(fn_worklist.begin());
+            if (debug) errs() << count++ << "\n";
+            if (debug) errs() << func->getName() << "\n";
+            if (debug) errs() << *func << "\n";
+            fn_worklist.erase(func);
             LivenessInfo initval;
-            compForwardDataflow(func, &visitor, &result, initval);
-        };
+            compForwardDataflow(func, &visitor, &result);
+            fn_worklist.insert(visitor.fn_worklist.begin(),visitor.fn_worklist.end());
+            visitor.fn_worklist.clear();
+            if (debug) errs() << "\n\n\n-------------------------------------\n";
+        }
         visitor.printCallFuncResult();
         return false;
     }
