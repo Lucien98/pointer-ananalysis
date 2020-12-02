@@ -108,7 +108,6 @@ public:
         for (Value * v; !value_worklist.empty(); value_worklist.erase(v))
         {
             v = *value_worklist.begin();
-            //errs() << dfval->LiveVars_map[v].size() << "\n";
             isa<Function>(*v) ? (void)result.insert((Function *)v) 
                 : value_worklist.insert(dfval->LiveVars_map[v].begin(), dfval->LiveVars_map[v].end());
         }
@@ -147,7 +146,6 @@ public:
         {
             if (tmpdfval.LiveVars_map.count(argi->first))
             {
-                //errs() << "guess who i am ^_^\n\n\n\n\n\n";
                 ValueSet values = tmpdfval.LiveVars_map[argi->first];
                 tmpdfval.LiveVars_map.erase(argi->first);
                 tmpdfval.LiveVars_map[argi->second].insert(values.begin(), values.end());
@@ -179,7 +177,6 @@ public:
 
     void HandleCallInst(CallInst *callInst, DataflowResult<LivenessInfo>::Type *result)
     {
-        //errs() << *callInst;
         LivenessInfo dfval = (*result)[callInst].first;
         std::set<Function *> callees;
         //callee被调用者，caller调用者
@@ -206,7 +203,6 @@ public:
 
             GetValueToArg_map(ValueToArg_map, callInst, callee, true);
             if(ValueToArg_map.empty()){
-                //errs() << callInst->getDebugLoc().getLine() << " ValueToArg_map is empty\n";
                 LivenessInfo &tmpdfval = (*result)[callInst].second;
                 merge(&tmpdfval, (*result)[callInst].first);
                 continue;
@@ -222,7 +218,6 @@ public:
             if (old_callee_dfval_in.LiveVars_map != callee_dfval_in.LiveVars_map 
                     ||old_callee_dfval_in.LiveVars_feild_map != callee_dfval_in.LiveVars_feild_map)
             {
-                //errs() << "call inst insert a function to fn_worklist: " << callee->getName() << "\n";
                 fn_worklist.insert(callee);
             }
         }
@@ -294,7 +289,6 @@ public:
             int flag = 0;
             Value * bitcastInst; 
             Value * loadInstPointerOperand;
-            //errs() << "pointerOperand : " << *pointerOperand << "\n";
             switch (type){
                 case 'S': 
                     dfval.LiveVars_map[pointerOperand].clear();
@@ -302,23 +296,27 @@ public:
                     flag = 0;
                     if (isa<LoadInst>(pointerOperand)){
                         loadInstPointerOperand = getLoadStorePointerOperand(pointerOperand);
-                        //errs() << "loadInstPointerOperand : " << *loadInstPointerOperand << "\n";
-                        //errs() << dfval.LiveVars_map;
                         if (isa<AllocaInst>(loadInstPointerOperand)){
-                            //errs() << "li pu\n";
                             for (auto ii = dfval.LiveVars_map[loadInstPointerOperand].begin(),
                                     ie = dfval.LiveVars_map[loadInstPointerOperand].end();
                                     ii != ie;
                                     ii++){
-                                //errs() << "this line must have been executed?\n ";
                                 if (isa<BitCastInst> (*ii)){
                                     flag = 1;
-                                    //errs() << "this line has not been executed?\n ";
                                     bitcastInst = *ii;
                                 }
                             }
                         }
                     }
+                    /*  %9 = load i32 (i32, i32)**, i32 (i32, i32)*** %3, align 8, !dbg !26
+                     *  store i32 (i32, i32)* @plus, i32 (i32, i32)** %9, align 8, !dbg !28
+                     *  %10 = load i32 (i32, i32)**, i32 (i32, i32)*** %3, align 8, !dbg !29
+                     *  %11 = load i32 (i32, i32)*, i32 (i32, i32)** %10, align 8, !dbg !30
+                     *  handle the alias of %3: %9, %10 is the alias of %3, when store plus to %9 
+                     *  (actually it stores plus to %3), we store it to the LiveVars_field_map[%3]; 
+                     *  when we want to load the value of %3 to %10 , we go to the LiveVars_field_map
+                     *  to get the value of %3
+                     * */
                     if (flag == 1){
                         dfval.LiveVars_feild_map[loadInstPointerOperand].clear();
                         dfval.LiveVars_feild_map[loadInstPointerOperand].insert(values.begin(), values.end());
@@ -339,17 +337,13 @@ public:
                         }
                     }
                     tmp = dfval.LiveVars_feild_map[pointerOperand];
-                    //size = dfval.LiveVars_map[pointerOperand].size();
                     if (flag == 1 && !tmp.empty()){
-                        //if (size >= 3) dfval.LiveVars_map[pointerOperand].clear();
-                        //errs() << "\nflag = 1 and tmp is not empty\n";
                         dfval.LiveVars_map[inst].insert(tmp.begin(), tmp.end());
                    }else
                    {
                        tmp = dfval.LiveVars_map[pointerOperand];
                        dfval.LiveVars_map[inst].insert(tmp.begin(), tmp.end());
                    }
-                   //dfval.LiveVars_map[pointerOperand].insert(inst);
                    break;
             }
         }
@@ -395,6 +389,20 @@ public:
         (*result)[returnInst].second = dfval;
     }
 
+    void HandleGetElementPtrInst(GetElementPtrInst *getElementPtrInst, DataflowResult<LivenessInfo>::Type *result)
+    {
+        LivenessInfo dfval = (*result)[getElementPtrInst].first;
+
+        dfval.LiveVars_map[getElementPtrInst].clear();
+
+        Value *pointerOperand = getElementPtrInst->getPointerOperand();
+        dfval.LiveVars_map[pointerOperand].empty()
+            ? (void) dfval.LiveVars_map[getElementPtrInst].insert(pointerOperand)
+            : (void) dfval.LiveVars_map[getElementPtrInst].insert(dfval.LiveVars_map[pointerOperand].begin(), dfval.LiveVars_map[pointerOperand].end());
+
+        (*result)[getElementPtrInst].second = dfval;
+    }
+
     void compDFVal(Instruction *inst, DataflowResult<LivenessInfo>::Type *result) override{
         if (debug){
             errs() << *inst << "\n\n";
@@ -417,6 +425,8 @@ public:
         {
             HandleReturnInst(returnInst, result);
         }
+        else if (auto getElementPtrInst = dyn_cast<GetElementPtrInst>(inst))
+            HandleGetElementPtrInst(getElementPtrInst, result);
         else
         {
             // out equal in
@@ -466,10 +476,7 @@ public:
        LivenessVisitor visitor;
        DataflowResult<LivenessInfo>::Type result;
        LivenessInfo initval;
-/*
-       compBackwardDataflow(&F, &visitor, &result, initval);
-       printDataflowResult<LivenessInfo>(errs(), result);
-*/       return false;
+       return false;
    }
 };
 
