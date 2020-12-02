@@ -15,8 +15,10 @@
 #include <llvm/IR/CFG.h>
 #include <llvm/IR/Function.h>
 
+#include <set>
 using namespace llvm;
 bool debug = false;
+std::set<Function *> fn_worklist;
 ///
 /// Dummy class to provide a typedef for the detailed result set
 /// For each basicblock, we compute its input dataflow val and its output dataflow val
@@ -39,24 +41,8 @@ public:
     /// @dfval the input dataflow value
     /// @isforward true to compute dfval forward, otherwise backward
     virtual void compDFVal(BasicBlock *block, typename DataflowResult<T>::Type *result, bool isforward) {
-        if (isforward == true) {
-           for (BasicBlock::iterator ii=block->begin(), ie=block->end(); 
-                ii!=ie; ++ii) {
-                Instruction * inst = &*ii;
-                compDFVal(inst, result);
-                if (Instruction *next_inst = inst->getNextNode()){
-                    (*result)[next_inst].first = (*result)[inst].second;
-                }
-           }
-        } else {
-            /*
-           for (BasicBlock::reverse_iterator ii=block->rbegin(), ie=block->rend();
-                ii != ie; ++ii) {
-                Instruction * inst = &*ii;
-                compDFVal(inst, dfval);
-           }
-           */
-        }
+       for(auto &inst: *block)
+           compDFVal(&inst, result);
     }
 
     ///
@@ -89,37 +75,23 @@ void compForwardDataflow(Function *fn,
     DataflowVisitor<T> *visitor,
     typename DataflowResult<T>::Type *result
     ) {
-    
-    std::set<BasicBlock *> bb_worklist;
-    T initval;
-    for(auto &bi : *fn){
-        BasicBlock * bb = dyn_cast<BasicBlock>(&bi);
-        for (auto ii = bb->begin(), ie = bb->end(); ii != ie; ii++)
-        {
-            auto i = dyn_cast<Instruction>(ii);
-            result->insert(std::make_pair(i, std::make_pair(initval, initval)));
-        }
-        bb_worklist.insert(bb);
-    }
 
-    while(!bb_worklist.empty()){
-        BasicBlock * bb = *bb_worklist.begin();
+    BasicBlock *bb;
+    for (auto &bi : *fn){
+        bb = dyn_cast<BasicBlock>(&bi);
         if (debug) errs() << *bb << "\n";
-        bb_worklist.erase(bb_worklist.begin());
 
         Instruction *bb_first_inst = &*(bb->begin());
-        Instruction *bb_last_inst = &*(--bb->end());
-        T bbinval = (*result)[bb_first_inst].first; // std::make_pair(initval, initval)[0]
+        T bbinval = (*result)[bb_first_inst].first; 
         
         for (auto pi = pred_begin(bb), pe = pred_end(bb); pi != pe; pi++)
         {
             BasicBlock *pred = *pi;
             Instruction *pred_last_inst = &*(--pred->end());
-            visitor->merge(&bbinval, (*result)[pred_last_inst].second); //std::make_pair(initval, initval)[1]
+            visitor->merge(&bbinval, (*result)[pred_last_inst].second); 
         }
 
         (*result)[bb_first_inst].first = bbinval;
-        T bb_outval = (*result)[bb_last_inst].second;
         visitor->compDFVal(bb,result,true);
     }
     return;
@@ -187,11 +159,5 @@ void printDataflowResult(raw_ostream &out,
             << "\n";
     }
 }
-
-
-
-
-
-
 
 #endif /* !_DATAFLOW_H_ */
