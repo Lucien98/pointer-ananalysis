@@ -116,47 +116,28 @@ public:
     }
 
     void HandleDataflow(std::map<Value *, Value *> ValueToArg_map, LivenessInfo &tmpdfval){
-        for (auto bi = tmpdfval.LiveVars_Map[0].begin(), be = tmpdfval.LiveVars_Map[0].end(); bi != be; bi++)
-        {
-            for (auto argi = ValueToArg_map.begin(), arge = ValueToArg_map.end(); argi != arge; argi++)
+        for(int i = 0; i < 2; i++)
+            for (auto bi = tmpdfval.LiveVars_Map[i].begin(), be = tmpdfval.LiveVars_Map[i].end(); bi != be; bi++)
             {
-                if (bi->second.count(argi->first) && !isa<Function>(argi->first))
+                for (auto argi = ValueToArg_map.begin(), arge = ValueToArg_map.end(); argi != arge; argi++)
                 {
-                    // 函数
-                    bi->second.erase(argi->first);
-                    bi->second.insert(argi->second);
+                    if (bi->second.count(argi->first) && !isa<Function>(argi->first))
+                    {
+                        // 函数
+                        bi->second.erase(argi->first);
+                        bi->second.insert(argi->second);
+                    }
                 }
             }
-        }
-
-        // replace LiveVars_Map[1]
-        for (auto bi = tmpdfval.LiveVars_Map[1].begin(), be = tmpdfval.LiveVars_Map[1].end(); bi != be; bi++)
-        {
-            for (auto argi = ValueToArg_map.begin(), arge = ValueToArg_map.end(); argi != arge; argi++)
-            {
-                if (bi->second.count(argi->first) && !isa<Function>(argi->first))
-                {
-                    bi->second.erase(argi->first);
-                    bi->second.insert(argi->second);
-                }
-            }
-        }
-
         for (auto argi = ValueToArg_map.begin(), arge = ValueToArg_map.end(); argi != arge; argi++)
         {
-            if (tmpdfval.LiveVars_Map[0].count(argi->first))
-            {
-                ValueSet values = tmpdfval.LiveVars_Map[0][argi->first];
-                tmpdfval.LiveVars_Map[0].erase(argi->first);
-                tmpdfval.LiveVars_Map[0][argi->second].insert(values.begin(), values.end());
-            }
-
-            if (tmpdfval.LiveVars_Map[1].count(argi->first))
-            {
-                ValueSet values = tmpdfval.LiveVars_Map[1][argi->first];
-                tmpdfval.LiveVars_Map[1].erase(argi->first);
-                tmpdfval.LiveVars_Map[1][argi->second].insert(values.begin(), values.end());
-            }
+            for (int i = 0; i < 2; i++)
+                if (tmpdfval.LiveVars_Map[i].count(argi->first))
+                {
+                    ValueSet values = tmpdfval.LiveVars_Map[i][argi->first];
+                    tmpdfval.LiveVars_Map[i].erase(argi->first);
+                    tmpdfval.LiveVars_Map[i][argi->second].insert(values.begin(), values.end());
+                }
         }
     }
 
@@ -215,8 +196,7 @@ public:
 
             HandleDataflow(ValueToArg_map, tmpfdval);
             merge(&callee_dfval_in, tmpfdval);
-            if (old_callee_dfval_in.LiveVars_Map[0] != callee_dfval_in.LiveVars_Map[0] 
-                    ||old_callee_dfval_in.LiveVars_Map[1] != callee_dfval_in.LiveVars_Map[1])
+            if (old_callee_dfval_in != callee_dfval_in)
             {
                 fn_worklist.insert(callee);
             }
