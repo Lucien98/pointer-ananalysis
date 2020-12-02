@@ -23,7 +23,6 @@
 #include <set>
 #include <vector>
 using namespace llvm;
-#define min(a,b) (((a)->first->getDebugLoc().getLine()<(b)->first->getDebugLoc().getLine())?(a):(b))
 
 //using FuntionSet = std::vector<Function *>;
 using ValueSet = std::set<Value *>;
@@ -57,18 +56,18 @@ inline raw_ostream &operator<<(raw_ostream &out, const LivenessToMap &v)
         if (isa<Function> (i->first))
             out << "[value]" << i->first->getName() << " " << "----->";
         else
-        out << "[value]" << *i->first << " " << " -----> ";
+        out << "[value]" << *i->first << " (" << i->first <<")" << " -----> ";
         for (auto ii = i->second.begin(), ie = i->second.end(); ii != ie; ++ii)
         {
-            errs() << "[valueSet]"; 
             if (ii != i->second.begin())
             {
                 errs() << ", ";
             }
+            errs() << "[valueSet]"; 
             if (isa<Function>(*(ii)))
                 out << (*ii)->getName() << " ";
             else
-            out << *(*ii) << " " ;
+            out << *(*ii) << " (" <<  *ii << ") " ;
         }
         out << "  \n\t\t  ";
     }
@@ -99,7 +98,7 @@ public:
             result.insert(func);
             return result;
         }
-
+        //errs() <<  "callInst get calee:\n";
         ValueSet value_worklist;
         if (dfval->LiveVars_map.find(value) != dfval->LiveVars_map.end())
         {
@@ -108,10 +107,12 @@ public:
         for (Value * v; !value_worklist.empty(); value_worklist.erase(v))
         {
             v = *value_worklist.begin();
+            //errs() << *v << "\n";
             isa<Function>(*v) ? (void)result.insert((Function *)v) 
                 : value_worklist.insert(dfval->LiveVars_map[v].begin(), dfval->LiveVars_map[v].end());
         }
 
+        //errs() << "\n\n\n\n\n";
         return result;
     }
 
@@ -301,7 +302,7 @@ public:
                                     ie = dfval.LiveVars_map[loadInstPointerOperand].end();
                                     ii != ie;
                                     ii++){
-                                if (isa<BitCastInst> (*ii)){
+                                if (isa<BitCastInst> (*ii) || isa<Argument> (*ii)){
                                     flag = 1;
                                     bitcastInst = *ii;
                                 }
@@ -330,7 +331,7 @@ public:
                                 ie = dfval.LiveVars_map[pointerOperand].end();
                                 ii != ie;
                                 ii++){
-                            if (isa<BitCastInst> (*ii)){
+                            if (isa<BitCastInst> (*ii)|| isa<Argument> (*ii)){
                                 flag = 1;
                                 bitcastInst = *ii;
                             }
@@ -404,40 +405,49 @@ public:
     }
 
     void compDFVal(Instruction *inst, DataflowResult<LivenessInfo>::Type *result) override{
-        if (debug){
-            errs() << *inst << "\n\n";
-            errs() << "\t\tdfval_In: " << (*result)[inst].first.LiveVars_map;
-        }
         if (isa<IntrinsicInst>(inst))
         {
             (*result)[inst].second = (*result)[inst].first;
+            debug = false;
             return;
         }
         if (auto callInst = dyn_cast<CallInst>(inst))
         {
             HandleCallInst(callInst, result);
+            //debug = true;
         }
         else if (isa<StoreInst>(inst) || isa<LoadInst>(inst))
         {
             HandleLoadStoreInst(inst, result);
+            //debug = true;
         }
         else if (auto returnInst = dyn_cast<ReturnInst>(inst))
         {
             HandleReturnInst(returnInst, result);
+            //debug = true;
         }
         else if (auto getElementPtrInst = dyn_cast<GetElementPtrInst>(inst))
+        {
+            //debug = false;
             HandleGetElementPtrInst(getElementPtrInst, result);
+        }
         else
         {
             // out equal in
+            //debug = false;
             (*result)[inst].second = (*result)[inst].first;
         }
+        if (debug){
+            errs() << *inst << "\n\n";
+            //errs() << "\t\tdfval_In: " << (*result)[inst].first.LiveVars_map;
+        }
+
         if (debug){
             errs() << "\t\tdfval_Out: " << (*result)[inst].second.LiveVars_map << "\n";
         }
        return;
    }
-    void printCallFuncResult()
+    void printCallFuncResult(DataflowResult<LivenessInfo>::Type *result)
     {
         while(!call_func_result.empty())
         {   
@@ -450,6 +460,9 @@ public:
                     : begin; //min(ii, begin);
                 begin++;            
             }
+            //errs() << *ii->first << "\n";
+            //errs() << (*result)[&*ii->first].first.LiveVars_map;
+            //errs() << (*result)[&*ii->first].first.LiveVars_feild_map;
             errs() << ii->first->getDebugLoc().getLine() << " : ";
             for (auto fi = ii->second.begin(), fe = ii->second.end(); fi != fe; fi++)
             {

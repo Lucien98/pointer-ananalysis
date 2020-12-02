@@ -75,8 +75,11 @@ public:
         LivenessVisitor visitor;
         Function *func;
         int count = 0;
+        //debug = true;
         for (;!fn_worklist.empty(); ){
             func = *(fn_worklist.begin());
+            //if (func->getName() == "foo") debug = true;
+            //else debug = false;
             if (debug) errs() << count++ << "\n";
             if (debug) errs() << func->getName() << "\n";
             if (debug) errs() << *func << "\n";
@@ -87,7 +90,7 @@ public:
             visitor.fn_worklist.clear();
             if (debug) errs() << "\n\n\n-------------------------------------\n";
         }
-        visitor.printCallFuncResult();
+        visitor.printCallFuncResult(&result);
         return false;
     }
 };
